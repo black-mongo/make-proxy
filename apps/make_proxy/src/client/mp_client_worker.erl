@@ -10,7 +10,6 @@
 -author("wang").
 
 -behaviour(gen_server).
--behaviour(ranch_protocol).
 
 %% API
 -export([start_link/4]).
