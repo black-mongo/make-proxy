@@ -11,12 +11,20 @@
 
 %% API
 -export([start_server/0,
-    start_client/0]).
+    start_client/0,
+    start/0]).
+
+start() ->
+    do_start_server(application:get_env(make_proxy, server_port, undefined)),
+    do_start_client(application:get_env(make_proxy, client_port, undefined)).
 
 start_server() ->
-    {ok, _} = application:ensure_all_started(make_proxy),
+    {ok, []} = application:ensure_all_started(make_proxy),
     {ok, Port} = application:get_env(make_proxy, server_port),
-
+    do_start_server(Port).
+do_start_server(undefined) ->
+    igore;
+do_start_server(Port) ->
     TransOpts = transport_opts(Port),
 
     {ok, _} = ranch:start_listener(
@@ -28,9 +36,12 @@ start_server() ->
     ).
 
 start_client() ->
-    {ok, _} = application:ensure_all_started(make_proxy),
+    {ok, []} = application:ensure_all_started(make_proxy),
     {ok, Port} = application:get_env(make_proxy, client_port),
-
+    do_start_client(Port).
+do_start_client(undefined) ->
+    ignore;
+do_start_client(Port) ->
     TransOpts = transport_opts(Port),
 
     {ok, _} = ranch:start_listener(
@@ -40,6 +51,5 @@ start_client() ->
         TransOpts,
         mp_client_worker, []
     ).
-
 transport_opts(Port) ->
     [{port, Port}, {max_connections, infinity}].

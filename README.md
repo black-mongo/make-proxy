@@ -1,52 +1,39 @@
-# Make Proxy
+make_proxy
+=====
 
-## Features
+An OTP application
 
-with the great erlang, the project has the following features:
+![CI](https://github.com/yangcancai/make_proxy/actions/workflows/ci.yml/badge.svg)
 
-*   support http, https, socks4, socks5,http proxy.
-*   Robustness. never down.
-*   Scalable. handle thousands requests at the same time easily.
-*   Fast.
-*   Lightweight.
+Required
+-----
 
+```shell
+$ rebar3 -v
+ rebar 3.14.4 on Erlang/OTP 22 Erts 10.7.2.1
+ ```
 
-## Illustrate
+Build
+-----
 
-```
-+------------+            +--------------+          
-| local app  |  <=======> | proxy client | <#######
-+------------+            +--------------+        #
-                                                  #
-                                                  #
-                                                  # encrypted data
-                                                  #
-                                                  #
-+-------------+            +--------------+       #
-| target host |  <=======> | proxy server |  <#####
-+-------------+            +--------------+         
-```
+    $ make co
 
+Eunit
+-----
 
-## Usage
+    $ make eunit
 
-1.  git clone https://github.com/yueyoum/make-proxy.git
-2.  cd make-proxy
-3.  rebar3 tree && rebar3 compile
-4.  cp app.config.example app.config
-    
-    #### app.config
+Common Test
+-----
 
-    *   server_addr - which address that the server listen on
-    *   server_port - which port that the server listen on
-    *   client_port - which port that the client listen on
-    *   key - key to encrypt/decrypt data **16bytes**
+    $ make ct
 
-5.  run `./start_server.sh` at server side, and `./start_client.sh` at client side.
-6.  Done.
+Dialyzer
+----
 
-## TODO
+    $ make dialyzer
 
-1.  Support Socks5 Username/Password Authorize
-2.  Client & Server using ssl connection
-3.  Traffic Statistics
+Test(dialyzer, eunit, ct)
+----
+
+    $ make test

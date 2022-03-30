@@ -23,3 +23,4 @@
 }).
 
 -type mp_target() :: {inet:ip_address() | nonempty_string(), inet:port_number()}.
+-define(Debug(A,B), lager:debug(A,B)).

@@ -1,0 +1,10 @@
+#!/bin/bash
+
+case $1 in
+    help)
+        echo "bin/make_proxy reload        execute make_proxy_ctl:reload()"
+        ;;
+    *) ;;
+esac
+R=$(relx_nodetool eval 'make_proxy_ctl:reload().')
+echo $R

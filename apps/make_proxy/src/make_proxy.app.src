@@ -6,7 +6,10 @@
   {applications,
    [kernel,
     stdlib,
-    ranch
+    ranch,
+    crypto,
+    observer_cli,
+    lager
    ]},
   {env,[]},
   {modules, []},

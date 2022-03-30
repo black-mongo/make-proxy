@@ -6,12 +6,12 @@
 %%% @end
 %%% Created : 14. Oct 2016 上午11:51
 %%%-------------------------------------------------------------------
--module(parse_http).
+-module(parse_http_test).
 -author("wang").
 
 -include_lib("eunit/include/eunit.hrl").
 
--include("mp_http_request.hrl").
+-include_lib("make_proxy/include/mp_http_request.hrl").
 
 parse_1_test() ->
     Data = <<"GET http://www.baidu.com HTTP/1.1\r\n\r\n">>,

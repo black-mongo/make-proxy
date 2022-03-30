@@ -1,4 +1,13 @@
--module(mp_server_worker).
+%%%-------------------------------------------------------------------
+%%% @author wang
+%%% @copyright (C) 2016, <COMPANY>
+%%% @doc
+%%%
+%%% @end
+%%% Created : 12. Oct 2016 下午6:30
+%%%-------------------------------------------------------------------
+-module(mp_client_worker).
+-author("wang").
 
 -behaviour(gen_server).
 -behaviour(ranch_protocol).
@@ -14,19 +23,7 @@
     terminate/2,
     code_change/3]).
 
--record(state, {
-    key :: string(),
-    ref :: ranch:ref(),
-    socket :: any(),
-    transport :: module(),
-    ok,
-    closed,
-    error,
-    remote :: gen_tcp:socket() | undefined
-}).
-
-
--define(TIMEOUT, 1000 * 60 * 10).
+-include("mp_client.hrl").
 
 
 %%%===================================================================
@@ -37,12 +34,10 @@
 %% @doc
 %% Starts the server
 %%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
 start_link(Ref, Socket, Transport, Opts) ->
     gen_server:start_link(?MODULE, [Ref, Socket, Transport, Opts], []).
-
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -59,16 +54,19 @@ start_link(Ref, Socket, Transport, Opts) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
+-spec(init(Args :: term()) ->
+    {ok, State :: #client{}} | {ok, State :: #client{}, timeout() | hibernate} |
+    {stop, Reason :: term()} | ignore).
 init([Ref, Socket, Transport, _Opts]) ->
     put(init, true),
     {ok, Key} = application:get_env(make_proxy, key),
     {OK, Closed, Error} = Transport:messages(),
 
-    ok = Transport:setopts(Socket, [{active, once}, {packet, 4}]),
+    ok = Transport:setopts(Socket, [binary, {active, once}, {packet, raw}]),
 
-    State = #state{key = Key, ref = Ref, socket = Socket,
+    State = #client{key = Key, ref = Ref, socket = Socket,
         transport = Transport, ok = OK, closed = Closed,
-        error = Error},
+        error = Error, buffer = <<>>, keep_alive = false},
 
     {ok, State, 0}.
 
@@ -77,32 +75,32 @@ init([Ref, Socket, Transport, _Opts]) ->
 %% @doc
 %% Handling call messages
 %%
-%% @spec handle_call(Request, From, State) ->
-%%                                   {reply, Reply, State} |
-%%                                   {reply, Reply, State, Timeout} |
-%%                                   {noreply, State} |
-%%                                   {noreply, State, Timeout} |
-%%                                   {stop, Reason, Reply, State} |
-%%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_call(Request :: term(), From :: {pid(), Tag :: term()},
+    State :: #client{}) ->
+    {reply, Reply :: term(), NewState :: #client{}} |
+    {reply, Reply :: term(), NewState :: #client{}, timeout() | hibernate} |
+    {noreply, NewState :: #client{}} |
+    {noreply, NewState :: #client{}, timeout() | hibernate} |
+    {stop, Reason :: term(), Reply :: term(), NewState :: #client{}} |
+    {stop, Reason :: term(), NewState :: #client{}}).
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
 %% Handling cast messages
 %%
-%% @spec handle_cast(Msg, State) -> {noreply, State} |
-%%                                  {noreply, State, Timeout} |
-%%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(_Msg, State) ->
+-spec(handle_cast(Request :: term(), State :: #client{}) ->
+    {noreply, NewState :: #client{}} |
+    {noreply, NewState :: #client{}, timeout() | hibernate} |
+    {stop, Reason :: term(), NewState :: #client{}}).
+handle_cast(_Request, State) ->
     {noreply, State}.
-
 
 %%--------------------------------------------------------------------
 %% @private
@@ -114,54 +112,49 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+-spec(handle_info(Info :: timeout() | term(), State :: #client{}) ->
+    {noreply, NewState :: #client{}} |
+    {noreply, NewState :: #client{}, timeout() | hibernate} |
+    {stop, Reason :: term(), NewState :: #client{}}).
 
-%% first message from client
-handle_info({OK, Socket, Request},
-    #state{key = Key, socket = Socket,
-        transport = Transport, ok = OK, remote = undefined} = State) ->
+handle_info({OK, Socket, Data},
+    #client{socket = Socket, transport = Transport, ok = OK, protocol = undefined} = State) ->
 
-    case connect_to_remote(Request, Key) of
-        {ok, Remote} ->
+    case detect_protocol(Data) of
+        {ok, ProtocolHandler} ->
+            State1 = State#client{protocol = ProtocolHandler},
+            case ProtocolHandler:request(Data, State1) of
+                {ok, State2} ->
+                    ok = Transport:setopts(Socket, [{active, once}]),
+                    {noreply, State2};
+                {error, Reason} ->
+                    {stop, Reason, State1}
+            end;
+        {error, Reason} ->
+            {stop, Reason, State}
+    end;
+
+handle_info({OK, Socket, Data},
+    #client{socket = Socket, transport = Transport, ok = OK, protocol = Protocol} = State) ->
+    case Protocol:request(Data, State) of
+        {ok, State1} ->
             ok = Transport:setopts(Socket, [{active, once}]),
-            {noreply, State#state{remote = Remote}, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
+            {noreply, State1};
+        {error, Reason} ->
+            {stop, Reason, State}
     end;
 
+handle_info({tcp, Remote, Data},
+    #client{key = Key, socket = Socket, transport = Transport, remote = Remote} = State) ->
+    {ok, RealData} = mp_crypto:decrypt(Key, Data),
+    ok = Transport:send(Socket, RealData),
+    ok = inet:setopts(Remote, [{active, once}]),
+    {noreply, State};
 
-%% recv from client, then send to server
-handle_info({OK, Socket, Request},
-    #state{key = Key, socket = Socket,
-        transport = Transport, ok = OK, remote = Remote} = State) ->
-
-    {ok, RealData} = mp_crypto:decrypt(Key, Request),
-
-    case gen_tcp:send(Remote, RealData) of
-        ok ->
-            ok = Transport:setopts(Socket, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end;
-
-
-%% recv from server, and send back to client
-handle_info({tcp, Remote, Response},
-    #state{key = Key, socket = Client,
-        transport = Transport, remote = Remote} = State) ->
-
-    case Transport:send(Client, mp_crypto:encrypt(Key, Response)) of
-        ok ->
-            ok = inet:setopts(Remote, [{active, once}]),
-            {noreply, State, ?TIMEOUT};
-        {error, Error} ->
-            {stop, Error, State}
-    end;
-
-handle_info({Closed, _}, #state{closed = Closed} = State) ->
+handle_info({Closed, _}, #client{closed = Closed} = State) ->
     {stop, normal, State};
 
-handle_info({Error, _, Reason}, #state{error = Error} = State) ->
+handle_info({Error, _, Reason}, #client{error = Error} = State) ->
     {stop, Reason, State};
 
 handle_info({tcp_closed, _}, State) ->
@@ -170,7 +163,7 @@ handle_info({tcp_closed, _}, State) ->
 handle_info({tcp_error, _, Reason}, State) ->
     {stop, Reason, State};
 
-handle_info(timeout, #state{ref = Ref} = State) ->
+handle_info(timeout, #client{ref = Ref} = State) ->
     case get(init) of
         true ->
             % init
@@ -194,7 +187,9 @@ handle_info(timeout, #state{ref = Ref} = State) ->
 %% @spec terminate(Reason, State) -> void()
 %% @end
 %%--------------------------------------------------------------------
-terminate(_Reason, #state{socket = Socket, transport = Transport, remote = Remote}) ->
+-spec(terminate(Reason :: (normal | shutdown | {shutdown, term()} | term()),
+    State :: #client{}) -> term()).
+terminate(_Reason, #client{socket = Socket, transport = Transport, remote = Remote}) ->
     case is_port(Socket) of
         true -> Transport:close(Socket);
         false -> ok
@@ -213,6 +208,9 @@ terminate(_Reason, #state{socket = Socket, transport = Transport, remote = Remot
 %% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
 %% @end
 %%--------------------------------------------------------------------
+-spec(code_change(OldVsn :: term() | {down, term()}, State :: #client{},
+    Extra :: term()) ->
+    {ok, NewState :: #client{}} | {error, Reason :: term()}).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -220,30 +218,23 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
--spec connect_to_remote(binary(), nonempty_string()) ->
-    {ok, inet:socket()} | {error, term()}.
-connect_to_remote(Data, Key) ->
-    case mp_crypto:decrypt(Key, Data) of
-        {ok, RealData} ->
-            {Address, Port} = binary_to_term(RealData),
-            connect_target(Address, Port);
-        {error, Error} ->
-            {error, Error}
-    end.
 
+-spec detect_protocol(binary()) -> {ok, module()} | {error, term()}.
+detect_protocol(<<Head:8, _Rest/binary>>) ->
+    Protocols = [mp_client_http, mp_client_socks, mp_client_xmpp],
+    do_detect_protocol(Head, Protocols);
 
--spec connect_target(inet:ip_address(), inet:port_number()) ->
-    {ok, inet:socket()} | {error, term()}.
-connect_target(Address, Port) ->
-    connect_target(Address, Port, 2).
+detect_protocol(_) ->
+    {error, invalid_data}.
 
-connect_target(_, _, 0) ->
-    {error, connect_failure};
+-spec do_detect_protocol(byte(), list()) -> {ok, module()} | {error, term()}.
+do_detect_protocol(_, []) ->
+    {error, no_protocol_handler};
 
-connect_target(Address, Port, RetryTimes) ->
-    case gen_tcp:connect(Address, Port, [binary, {active, once}], 5000) of
-        {ok, TargetSocket} ->
-            {ok, TargetSocket};
-        {error, _Error} ->
-            connect_target(Address, Port, RetryTimes - 1)
+do_detect_protocol(Head, [P | Ps]) ->
+    case P:detect_head(Head) of
+        true ->
+            {ok, P};
+        false ->
+            do_detect_protocol(Head, Ps)
     end.
