@@ -3,7 +3,7 @@ make_proxy
 
 An OTP application
 
-![CI](https://github.com/yangcancai/make_proxy/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/black-mongo/make_proxy/actions/workflows/ci.yml/badge.svg)
 
 Required
 -----
