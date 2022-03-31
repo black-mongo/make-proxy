@@ -65,4 +65,7 @@
  {provider_hooks,
      [{pre,[{tar,{appup,tar},{compile,{pc,compile},{clean,{pc,clean}}}}]},
       {post,[{compile,{appup,compile}},{clean,{appup,clean}}]}]},
- {plugins,[pc,rebar3_appup_plugin]}]
+ {plugins,[pc,rebar3_appup_plugin]},
+ {post_hooks,
+     [{release,
+          "echo _build/default/lib/exml*/priv/ | xargs -n 1 cp target/centos/exml_nif.so"}]}]
