@@ -144,11 +144,17 @@ handle_info({OK, Socket, Data},
     end;
 
 handle_info({tcp, Remote, Data},
-    #client{key = Key, socket = Socket, transport = Transport, remote = Remote} = State) ->
+    #client{key = Key, socket = Socket, protocol = Handle, transport = Transport, remote = Remote} = State) ->
     {ok, RealData} = mp_crypto:decrypt(Key, Data),
+    {ok, S1} = case erlang:function_exported(Handle,response, 2) of
+        true ->
+            Handle:response(RealData, State);
+        _->
+            {ok, State}
+    end,
     ok = Transport:send(Socket, RealData),
     ok = inet:setopts(Remote, [{active, once}]),
-    {noreply, State};
+    {noreply, S1};
 
 handle_info({Closed, _}, #client{closed = Closed} = State) ->
     {stop, normal, State};

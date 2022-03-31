@@ -29,10 +29,11 @@ new_meck() ->
 
 expect() ->
     ok = meck:expect(make_proxy, test, fun() -> {ok, 1} end).
+
 del_meck() ->
     meck:unload().
 
 handle(_Config) ->
     expect(),
-    ?assertEqual({ok,1}, make_proxy:test()),
+    ?assertEqual({ok, 1}, make_proxy:test()),
     ok.

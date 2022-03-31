@@ -15,3 +15,8 @@
 -callback request(Data :: binary(), State :: #client{}) ->
     {ok, State :: #client{}} |
     {error, Reason :: term()}.
+-callback  response(Data :: binary(), State :: #client{}) ->
+    {ok, State :: #client{}} |
+    {error, Reason :: term()}.
+
+-optional_callbacks([response/2]).

@@ -7,10 +7,10 @@
 %%% Created : 14. Oct 2016 上午11:51
 %%%-------------------------------------------------------------------
 -module(parse_http_test).
+
 -author("wang").
 
 -include_lib("eunit/include/eunit.hrl").
-
 -include_lib("make_proxy/include/mp_http_request.hrl").
 
 parse_1_test() ->
@@ -21,7 +21,8 @@ parse_1_test() ->
     ?assertEqual(Req#http_request.port, 80).
 
 parse_2_test() ->
-    Data = <<"GET https://google.com HTTP/1.1\r\nHost: google.com\r\n\r\nGET https://youbute.com/ HTTP">>,
+    Data =
+        <<"GET https://google.com HTTP/1.1\r\nHost: google.com\r\n\r\nGET https://youbute.com/ HTTP">>,
     {_, Req} = mp_client_http:parse_http_request(Data),
     ?assertEqual(Req#http_request.status, done),
     ?assertEqual(Req#http_request.host, "google.com"),
@@ -29,7 +30,8 @@ parse_2_test() ->
     ?assertEqual(Req#http_request.next_data, <<"GET https://youbute.com/ HTTP">>).
 
 parse_3_test() ->
-    Data = <<"POST https://google.com/ HTTP/1.1\r\nContent-Length: 5\r\n\r\nHelloGET https://youbute.com/ HTTP">>,
+    Data =
+        <<"POST https://google.com/ HTTP/1.1\r\nContent-Length: 5\r\n\r\nHelloGET https://youbute.com/ HTTP">>,
     {_, Req} = mp_client_http:parse_http_request(Data),
     ?assertEqual(Req#http_request.status, done),
     ?assertEqual(Req#http_request.next_data, <<"GET https://youbute.com/ HTTP">>).

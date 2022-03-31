@@ -9,7 +9,8 @@
     ranch,
     crypto,
     observer_cli,
-    lager
+    lager,
+    exml
    ]},
   {env,[]},
   {modules, []},

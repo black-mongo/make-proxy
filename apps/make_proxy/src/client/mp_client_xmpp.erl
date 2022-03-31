@@ -26,9 +26,10 @@
 -author("black-mongo").
 
 -behaviour(mp_client_protocol).
-
+-include_lib("exml/include/exml.hrl").
 -export([detect_head/1,
-    request/2
+    request/2,
+    response/2
     ]).
 
 -include("mp_client.hrl").
@@ -49,11 +50,11 @@ request(Data,
                     EncryptedTarget = mp_crypto:encrypt(Key, term_to_binary(Target)),
                     ok = gen_tcp:send(Remote, EncryptedTarget),
                     case Body of
-                        <<>> -> ok;
+                        <<>> ->
+                        {ok, State#client{remote = Remote}};
                         _ ->
-                            ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Body))
-                    end,
-                    {ok, State#client{remote = Remote}};
+                            send(Body, State#client{remote = Remote})
+                    end;
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -70,9 +71,51 @@ request(Data,
             {ok, State#client{buffer = Data1}}
     end;
 
-request(Data, #client{key = Key, remote = Remote} = State) ->
+request(Data, State) ->
+  send(Data, State) .
+send(Data, #client{key = Key, remote = Remote} = State) ->
+    {ok, S} = do_stanza(send, Data, State),
     ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Data)),
-    {ok, State}.
+    {ok, S}.
+do_stanza(Key, Data, #client{handle_state = HandleState} = State) ->
+    Parse = get_parse(Key, HandleState),
+    {ok, Parse1, L}= exml_stream:parse(Parse, Data),
+    log(L, Key),
+    {ok, State#client{handle_state = HandleState#{Key =>Parse1}}}.
+log(L, Key) when is_list(L)->
+    lists:foldl(fun log/2, Key, L);
+log(Row, Acc) ->
+    case Acc == recv andalso Row of
+        #xmlel{name = <<"iq">>,
+            children = [#xmlel{name = <<"bind">>,
+                children = [#xmlel{name = <<"jid">>,
+                children = [#xmlcdata{content = Jid}]}]}]} ->
+            ID = get_id(),
+            set_id(<<ID/binary,",",Jid/binary>>);
+        _->
+            ok
+    end,
+    ?Debug("(~ts) => ~p:~ts~n",[get_id(),Acc, exml:to_binary(Row)]),
+    Acc.
+get_id() ->
+    case erlang:get(id) of
+      undefined ->
+          set_id();
+        ID ->
+          ID
+    end.
+set_id() ->
+    ID =  base64:encode(crypto:strong_rand_bytes(8)),
+    set_id(ID).
+set_id(ID) ->
+    erlang:put(id, ID),
+    ID.
+get_parse(Key,HandleState) ->
+    {ok,P} = exml_stream:new_parser(),
+    maps:get(Key, HandleState, P).
+
+response(Data, State) ->
+    do_stanza(recv, Data, State).
 find_target(Data) ->
     Host = application:get_env(make_proxy, im, "im.server"),
     {ok, {Host, 5222}, Data}.

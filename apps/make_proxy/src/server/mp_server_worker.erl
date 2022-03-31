@@ -137,7 +137,6 @@ handle_info({OK, Socket, Request},
 
     case gen_tcp:send(Remote, RealData) of
         ok ->
-            ?Debug("send:~ts~n",[RealData]),
             ok = Transport:setopts(Socket, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->
@@ -152,7 +151,6 @@ handle_info({tcp, Remote, Response},
 
     case Transport:send(Client, mp_crypto:encrypt(Key, Response)) of
         ok ->
-            ?Debug("recv:~ts~n",[Response]),
             ok = inet:setopts(Remote, [{active, once}]),
             {noreply, State, ?TIMEOUT};
         {error, Error} ->

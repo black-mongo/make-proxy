@@ -19,7 +19,8 @@
     remote :: port() | undefined,
     protocol :: module() | undefined,
     buffer :: binary(),
-    keep_alive = flase :: boolean()
+    keep_alive = flase :: boolean(),
+    handle_state = #{}
 }).
 
 -type mp_target() :: {inet:ip_address() | nonempty_string(), inet:port_number()}.
