@@ -10,11 +10,14 @@
 -author("wang").
 
 %% API
--export([connect_to_remote/0]).
+-export([connect_to_remote/1,connect_to_remote/0]).
+
+connect_to_remote({Host, Port}) ->
+    {ok, Addr} = inet:getaddr(Host, inet),
+    gen_tcp:connect(Addr, Port, [binary, {active, once}]).
 
 connect_to_remote() ->
     {ok, RemoteAddr} = application:get_env(make_proxy, server_addr),
     {ok, RemotePort} = application:get_env(make_proxy, server_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
-
     gen_tcp:connect(Addr, RemotePort, [binary, {active, once}, {packet, 4}]).

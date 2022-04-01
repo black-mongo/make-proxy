@@ -143,19 +143,34 @@ handle_info({OK, Socket, Data},
             {stop, Reason, State}
     end;
 
-handle_info({tcp, Remote, Data},
-    #client{key = Key, socket = Socket, protocol = Handle, transport = Transport, remote = Remote} = State) ->
-    {ok, RealData} = mp_crypto:decrypt(Key, Data),
-    {ok, S1} = case erlang:function_exported(Handle,response, 2) of
+handle_info({TcpOrTls, Remote, Data},
+    #client{key = Key, socket = Socket, protocol = Handle, transport = Transport, remote = Remote} = State) when TcpOrTls == tcp;
+    TcpOrTls == ssl->
+    {ok, RealData} = case Handle of
+        mp_client_xmpp ->
+            {ok, Data};
+        _->
+            mp_crypto:decrypt(Key, Data)
+    end,
+    {ok, #client{ok = OK, remote = Remote1} = S1, Sended} = case erlang:function_exported(Handle,response, 2) of
         true ->
             Handle:response(RealData, State);
         _->
-            {ok, State}
+            {ok, State, false}
     end,
-    ok = Transport:send(Socket, RealData),
-    ok = inet:setopts(Remote, [{active, once}]),
+    case Sended of
+        true ->
+            ok;
+        _->
+            ok = Transport:send(Socket, RealData)
+    end,
+    case OK of
+        ssl ->
+            ok = ssl:setopts(Remote1, [{active, once}]);
+        _->
+            ok = inet:setopts(Remote1, [{active, once}])
+    end,
     {noreply, S1};
-
 handle_info({Closed, _}, #client{closed = Closed} = State) ->
     {stop, normal, State};
 
