@@ -20,3 +20,6 @@ _build
 app.config
 config/sys.config
 config/vm.args
+rebar.config.gen.make_proxy
+.DS_Store
+.tool-versions

@@ -41,11 +41,12 @@
   {make_proxy, [
           {server_addr, "127.0.0.1"},
           {server_port, 7071},
-          {client_port, 5222},
+          {client_port, 5223},
           {key, "1234567890abcdef"},
           {tls,[
-          {certfile,"certfile/www.example.com.cert.pem"},
-          {keyfile, "certfile/www.example.com.key.pem"},
+          {cacertfile, "certfile/cacert.pem"},
+          {certfile,"certfile/cert.pem"},
+          {keyfile, "certfile/key.pem"},
           {password, "123456"}]}
   ]}
  ].

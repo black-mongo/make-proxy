@@ -35,8 +35,10 @@
 -include("mp_client.hrl").
 -include("mp_http_request.hrl").
 
+detect_head($<) ->
+    true;
 detect_head(_) ->
-    true.
+    false.
 
 request(Data,
     #client{key = _Key, socket = Socket, transport = Transport,
@@ -88,6 +90,7 @@ send(Data, #client{remote = Remote, ok = OK} = State) ->
     end,
     {ok, S}.
 do_stanza(Key, Data, #client{handle_state = HandleState} = State) ->
+%%    ?Debug("key=~p,data=~p",[Key, Data]),
     Parse = get_parse(Key, HandleState),
     {ok, Parse1, L}= exml_stream:parse(Parse, Data),
     {S1, Sended} = log(L, Key, State),

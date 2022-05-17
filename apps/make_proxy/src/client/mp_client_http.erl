@@ -39,8 +39,15 @@ request(Data, #client{remote = Remote, keep_alive = false} = State) ->
     gen_tcp:close(Remote),
     request(Data, State#client{remote = undefined});
 
-request(Data, #client{key = Key, remote = Remote, keep_alive = true} = State) ->
-    ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Data)),
+request(Data, #client{key = _Key, remote = Remote, keep_alive = true, enable_https = Https} = State) ->
+    case Https of
+       true ->
+           ?Debug("s = ~p, request = ~p", [State, Data]),
+           ok = ssl:send(Remote, Data);
+      _->
+%%           ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Data))
+           ok = gen_tcp:send(Remote, Data)
+    end,
     {ok, State}.
 
 -spec do_communication(binary(), #http_request{}, #client{}) ->
@@ -49,23 +56,39 @@ request(Data, #client{key = Key, remote = Remote, keep_alive = true} = State) ->
 do_communication(Data,
     #http_request{host = Host, port = Port, next_data = NextData} = Req,
     #client{key = Key, socket = Socket, transport = Transport} = State) ->
-
-    case mp_client_utils:connect_to_remote() of
+    Enable = case application:get_env(make_proxy, enable_https, true)  of
+                 true when Host == "web.mchat.com"; Host == "github.com";Host == "www.github.com"  ->
+                     true;
+                 _->
+                     false
+             end,
+    case mp_client_utils:connect_to_remote({Host, Port, Enable}) of
         {ok, Remote} ->
-            ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, term_to_binary({Host, Port}))),
+            ?Debug("host=~p,port=~p, nextdata = ~p",[Host, Port, NextData]),
+%%            ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, term_to_binary({"www.baidu.com", Port}))),
 
             State1 = State#client{remote = Remote, buffer = NextData},
 
             case Req#http_request.method =:= <<"CONNECT">> of
                 true ->
-                    Transport:send(Socket, <<"HTTP/1.1 200 OK\r\n\r\n">>),
-                    {ok, State1#client{keep_alive = true}};
+                    case  Enable of
+                        true ->
+                            erlang:spawn_link(fun() ->
+                                timer:sleep(10),
+                                ok = Transport:send(Socket, <<"HTTP/1.1 200 OK\r\n\r\n">>)
+                                              end),
+                            {ok, starttls(State1#client{keep_alive = true, enable_https = true}, Host, Port)};
+                        _->
+                            Transport:send(Socket, <<"HTTP/1.1 200 OK\r\n\r\n">>),
+                            {ok, State1#client{keep_alive = true}}
+                    end;
                 false ->
                     ThisData = binary:part(Data, 0, byte_size(Data) - byte_size(NextData)),
                     ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, ThisData)),
                     {ok, State1}
             end;
         {error, Reason} ->
+            ?Debug("host = ~p, port = ~p, error = ~p, method = ~p",[Host, Port, Reason, Req#http_request.method]),
             {error, Reason}
     end.
 
@@ -184,3 +207,17 @@ find_port(<<"https">>, <<>>) ->
 
 find_port(_, PortBin) ->
     binary_to_integer(PortBin).
+
+%% proxy start tls
+starttls(#client{socket = Socket} = Client, _Host, _Port) ->
+%%    Tls = [],
+    {ok, Tls} = application:get_env(make_proxy, tls),
+    {ok, TLSSocket} = ssl:handshake(Socket, Tls),
+    ok = ssl:setopts(TLSSocket, [{active, once}]),
+    upgrade_to_tls(Client#client{socket = TLSSocket, transport = ssl, ok = ssl, closed = ssl_closed}).
+
+
+%% remote socket upgrade to tls
+upgrade_to_tls(#client{remote = Remote} = S) ->
+%%    {ok, TlsSocket} = ssl:connect(Remote,[{reuse_sessions,true}]),
+    S#client{remote = Remote}.

@@ -144,10 +144,17 @@ handle_info({OK, Socket, Data},
     end;
 
 handle_info({TcpOrTls, Remote, Data},
-    #client{key = Key, socket = Socket, protocol = Handle, transport = Transport, remote = Remote} = State) when TcpOrTls == tcp;
+    #client{key = Key, socket = Socket, protocol = Handle, transport = Transport, remote = Remote, enable_https =
+    Https} = State) when
+    TcpOrTls == tcp;
     TcpOrTls == ssl->
     {ok, RealData} = case Handle of
         mp_client_xmpp ->
+            {ok, Data};
+        mp_client_http when Https->
+            ?Debug("response = ~ts", [Data]),
+            {ok, Data};
+        mp_client_http ->
             {ok, Data};
         _->
             mp_crypto:decrypt(Key, Data)

@@ -12,6 +12,10 @@
 %% API
 -export([connect_to_remote/1,connect_to_remote/0]).
 
+connect_to_remote({Host, Port, true}) ->
+    ssl:connect(Host, Port, [binary, {active, once}]);
+connect_to_remote({Host, Port, _}) ->
+    connect_to_remote({Host, Port});
 connect_to_remote({Host, Port}) ->
     {ok, Addr} = inet:getaddr(Host, inet),
     gen_tcp:connect(Addr, Port, [binary, {active, once}]).
