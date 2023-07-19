@@ -26,10 +26,12 @@ do_start_server(undefined) ->
     igore;
 do_start_server(Port) ->
     TransOpts = transport_opts(Port),
-
+% {ok, _} = ranch:start_listener(eproxy,
+%        ranch_tcp, #{socket_opts => [{port, Port}], max_connections => 100},
+%        eproxy, []
+%      ).
     {ok, _} = ranch:start_listener(
         make_proxy_server,
-        20,
         ranch_tcp,
         TransOpts,
         mp_server_worker, []
@@ -46,10 +48,10 @@ do_start_client(Port) ->
 
     {ok, _} = ranch:start_listener(
         make_proxy_client,
-        20,
         ranch_tcp,
         TransOpts,
         mp_client_worker, []
     ).
 transport_opts(Port) ->
-    [{port, Port}, {max_connections, infinity}].
+    #{socket_opts => [{port, Port}], max_connections => infinity}.
+    % [{port, Port}, {max_connections, infinity}].

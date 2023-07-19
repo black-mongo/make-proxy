@@ -16,7 +16,6 @@ logs
 _build
 .idea
 *.iml
-*.lock
 app.config
 config/sys.config
 config/vm.args

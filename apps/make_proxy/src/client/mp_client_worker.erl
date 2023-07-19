@@ -12,7 +12,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start_link/4]).
+-export([start_link/3]).
 
 %% gen_server callbacks
 -export([init/1,
@@ -35,8 +35,8 @@
 %%
 %% @end
 %%--------------------------------------------------------------------
-start_link(Ref, Socket, Transport, Opts) ->
-    gen_server:start_link(?MODULE, [Ref, Socket, Transport, Opts], []).
+start_link(Ref, Transport, Opts) ->
+    gen_server:start_link(?MODULE, [Ref, Transport, Opts], []).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -56,18 +56,9 @@ start_link(Ref, Socket, Transport, Opts) ->
 -spec(init(Args :: term()) ->
     {ok, State :: #client{}} | {ok, State :: #client{}, timeout() | hibernate} |
     {stop, Reason :: term()} | ignore).
-init([Ref, Socket, Transport, _Opts]) ->
+init([Ref, Transport, _Opts]) ->
     put(init, true),
-    {ok, Key} = application:get_env(make_proxy, key),
-    {OK, Closed, Error} = Transport:messages(),
-
-    ok = Transport:setopts(Socket, [binary, {active, once}, {packet, raw}]),
-
-    State = #client{key = Key, ref = Ref, socket = Socket,
-        transport = Transport, ok = OK, closed = Closed,
-        error = Error, buffer = <<>>, keep_alive = false},
-
-    {ok, State, 0}.
+    {ok, #client{ref = Ref, transport = Transport}, 0}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -190,13 +181,19 @@ handle_info({tcp_closed, _}, State) ->
 handle_info({tcp_error, _, Reason}, State) ->
     {stop, Reason, State};
 
-handle_info(timeout, #client{ref = Ref} = State) ->
+handle_info(timeout, #client{ref = Ref, transport = Transport} = State) ->
     case get(init) of
         true ->
             % init
-            ok = ranch:accept_ack(Ref),
+           {ok, Socket} = ranch:handshake(Ref),
+          {ok, Key} = application:get_env(make_proxy, key),
+        %   {tcp,tcp_closed,tcp_error,tcp_passive}
+          {OK, Closed, Error, _} = Transport:messages(),
+          ok = Transport:setopts(Socket, [binary, {active, once}, {packet, raw}]),
             erase(init),
-            {noreply, State};
+            {noreply, State#client{key = Key, ref = Ref, socket = Socket,
+        transport = Transport, ok = OK, closed = Closed,
+        error = Error, buffer = <<>>, keep_alive = false}};
         undefined ->
             % timeout
             {stop, normal, State}
