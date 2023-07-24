@@ -22,3 +22,5 @@ config/vm.args
 rebar.config.gen.make_proxy
 .DS_Store
 .tool-versions
+rebar3.crashdump
+rebar.config.gen.make_proxy

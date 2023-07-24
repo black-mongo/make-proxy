@@ -8,12 +8,11 @@
 %%%-------------------------------------------------------------------
 -author("wang").
 
--record(http_request, {
-    status = more       :: more | done | error,
-    method              :: binary() | undefined,
-    host                :: nonempty_string() | undefined,
-    port                :: inet:port_number() | undefined,
-    content_length = 0  :: non_neg_integer(),
-    current_length = 0  :: non_neg_integer(),
-    next_data = <<>>    :: binary()
-}).
+-record(http_request,
+        {status = more :: more | done | error,
+         method :: binary() | undefined,
+         host :: nonempty_string() | undefined,
+         port :: inet:port_number() | undefined,
+         content_length = 0 :: non_neg_integer(),
+         current_length = 0 :: non_neg_integer(),
+         next_data = <<>> :: binary()}).

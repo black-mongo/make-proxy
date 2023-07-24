@@ -1,6 +1,6 @@
 -module(mp_crypto).
--export([encrypt/2,
-         decrypt/2]).
+
+-export([encrypt/2, decrypt/2]).
 
 -define(DATALENGTH, 16).
 -define(IV, <<"^de$@#56*sxdfrtg">>).
@@ -13,13 +13,12 @@ encrypt(Key, Binary) ->
 
     FinalBinary = <<BinaryLength:32/integer-big, Binary/binary, 0:AdditionalLength/unit:8>>,
     % crypto:block_encrypt(aes_cbc128, Key, ?IV, FinalBinary).
- crypto:crypto_one_time(aes_cbc, Key, ?IV, FinalBinary, true).
+    crypto:crypto_one_time(aes_cbc, Key, ?IV, FinalBinary, true).
 
--spec decrypt(nonempty_string(), binary()) -> {ok, binary()} |
-                                               {error, term()}.
+-spec decrypt(nonempty_string(), binary()) -> {ok, binary()} | {error, term()}.
 decrypt(Key, Binary) ->
     % Data = crypto:block_decrypt(aes_cbc128, Key, ?IV, Binary),
- Data = crypto:crypto_one_time(aes_cbc, Key, ?IV, Binary, false),
+    Data = crypto:crypto_one_time(aes_cbc, Key, ?IV, Binary, false),
     try
         <<Length:32/integer-big, RealData:Length/binary, _Rest/binary>> = Data,
         {ok, RealData}
@@ -27,4 +26,3 @@ decrypt(Key, Binary) ->
         Error:Reason ->
             {error, {Error, Reason}}
     end.
-

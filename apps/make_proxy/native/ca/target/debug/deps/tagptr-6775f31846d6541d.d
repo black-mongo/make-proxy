@@ -1,0 +1,12 @@
+/Users/cam/proj/erlang/make-proxy/apps/make_proxy/native/ca/target/debug/deps/tagptr-6775f31846d6541d.rmeta: /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/lib.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros/doc.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/atomic.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/non_null.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/ptr.rs
+
+/Users/cam/proj/erlang/make-proxy/apps/make_proxy/native/ca/target/debug/deps/libtagptr-6775f31846d6541d.rlib: /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/lib.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros/doc.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/atomic.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/non_null.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/ptr.rs
+
+/Users/cam/proj/erlang/make-proxy/apps/make_proxy/native/ca/target/debug/deps/tagptr-6775f31846d6541d.d: /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/lib.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros/doc.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/atomic.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/non_null.rs /Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/ptr.rs
+
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/lib.rs:
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros.rs:
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/macros/doc.rs:
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/atomic.rs:
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/non_null.rs:
+/Users/cam/.cargo/registry/src/github.com-1ecc6299db9ec823/tagptr-0.2.0/src/imp/ptr.rs:

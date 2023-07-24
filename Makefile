@@ -32,9 +32,21 @@ test: epmd dialyzer
 eunit: epmd
 	./rebar3 do eunit -v, cover
 
-ct: epmd
-	./rebar3 do ct -v --config test/ct/ct.config --sys_config config/test.config, cover
+MOD := $(m)
+CT_DIR := test/ct
+PWD	:= $(shell pwd)
+ifneq ($(MOD),)
+	ifeq ($(shell if [ -f $(PWD)/test/ct/$(MOD).erl ]; then echo "ok"; fi), ok)
+		CT_DIR := test/ct
+	endif
+endif
 
+ct: epmd
+ifdef MOD
+	./rebar3 ct -v --dir $(CT_DIR) --suite $(MOD) --config test/ct/ct.config --sys_config config/test.config
+else
+	./rebar3 ct -v --dir test/ct --config test/ct/ct.config --sys_config config/test.config
+endif
 testclean:
 	@rm -fr _build/test
 

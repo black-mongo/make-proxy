@@ -1,0 +1,1 @@
+/Users/cam/proj/erlang/make-proxy/apps/make_proxy/native/ca/target/debug/libca.dylib: /Users/cam/proj/erlang/make-proxy/apps/make_proxy/native/ca/src/lib.rs /Users/cam/proj/rust/inn/inn-common/src/cli.rs /Users/cam/proj/rust/inn/inn-common/src/genca.rs /Users/cam/proj/rust/inn/inn-common/src/lib.rs

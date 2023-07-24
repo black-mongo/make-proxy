@@ -1,21 +1,12 @@
-{application, make_proxy,
+{application,
+ make_proxy,
  [{description, "An OTP application"},
   {vsn, "0.1.0"},
   {registered, []},
-  {mod, { make_proxy_app, []}},
-  {applications,
-   [kernel,
-    stdlib,
-    ranch,
-    crypto,
-    observer_cli,
-    lager,
-    exml
-   ]},
-  {env,[]},
+  {mod, {make_proxy_app, []}},
+  {applications, [kernel, stdlib, ranch, crypto, observer_cli, cool_tools, exml]},
+  {env, []},
   {modules, []},
-
   {maintainers, []},
   {licenses, []},
-  {links, []}
- ]}.
+  {links, []}]}.

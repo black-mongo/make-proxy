@@ -16,7 +16,7 @@ succeeding_simple_test_() ->
 
 socks_test() ->
     Server = erlang:spawn_link(fun() -> start_echo() end),
-%%    {ok, Conn} = gen_tcp:connect("127.0.0.1", 7777, []),
+    %%    {ok, Conn} = gen_tcp:connect("127.0.0.1", 7777, []),
     {ok, Conn} = gen_tcp:connect("119.9.91.52", 65535, []),
     ok = gen_tcp:send(Conn, <<5, 1, 0>>),
     %% No authentication
@@ -24,7 +24,7 @@ socks_test() ->
     A = 8888 band 255,
     B = 8888 bsr 8,
     %% client connection request
-    ok = gen_tcp:send(Conn, <<5,1,0,1,127,0,0,1,B, A>>),
+    ok = gen_tcp:send(Conn, <<5, 1, 0, 1, 127, 0, 0, 1, B, A>>),
     %% Response packet from server
     %% request granted
     <<5, 0, _/binary>> = match(Conn),
@@ -38,7 +38,7 @@ match(Conn) ->
     receive
         {tcp_closed, _} ->
             tcp_closed;
-        {tcp, Conn, Data}  ->
+        {tcp, Conn, Data} ->
             iolist_to_binary(Data)
     end.
 
