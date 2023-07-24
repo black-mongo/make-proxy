@@ -24,3 +24,4 @@ rebar.config.gen.make_proxy
 .tool-versions
 rebar3.crashdump
 rebar.config.gen.make_proxy
+/apps/make_proxy/native/ca/target/
