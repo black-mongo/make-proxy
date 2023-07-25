@@ -5,7 +5,7 @@
               {registered,[]},
               {mod,{make_proxy_app,[]}},
               {applications,[kernel,stdlib,ranch,crypto,observer_cli,
-                             cool_tools,exml]},
+                             cool_tools,exml,ssl]},
               {env,[]},
               {modules,[]},
               {maintainers,[]},

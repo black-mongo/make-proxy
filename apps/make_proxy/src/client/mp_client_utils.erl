@@ -19,14 +19,14 @@ connect_to_remote({Host, Port, true}) when Port /= 80 ->
             {ok, File} ->
                 File;
             _ ->
-              certifi:cacertfile()
-%%                certifi:cacerts()
+                certifi:cacertfile()
         end,
+    %%                certifi:cacerts()
     ssl:connect(Host,
                 Port,
                 [binary,
                  {active, once},
-%%                 {verify, verify_peer},
+                 %%                 {verify, verify_peer},
                  {depth, 99},
                  {cacertfile, CaCerts}]);
 connect_to_remote({Host, Port, _}) ->

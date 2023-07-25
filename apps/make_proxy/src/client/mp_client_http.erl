@@ -2,7 +2,7 @@
 
 -behaviour(mp_client_protocol).
 
--export([detect_head/1, request/2, parse_http_request/1]).
+-export([detect_head/1, request/2, parse_http_request/1, certfile_to_cert/1]).
 
 -include("mp_client.hrl").
 -include("mp_http_request.hrl").
@@ -60,11 +60,15 @@ do_communication(Data,
                  #client{socket = Socket, transport = Transport} = State) ->
     NewHost = remove_prefix(Host),
     Enable =
-        case application:get_env(make_proxy, enable_https, true) of
+        case Req#http_request.method =:= <<"CONNECT">>
+             andalso application:get_env(make_proxy, enable_https, true)
+        of
             true when NewHost == <<"guyongli.net">>; NewHost == <<"github.com">> ->
                 true;
+            true ->
+                true;
             _ ->
-               true
+                false
         end,
     case mp_client_utils:connect_to_remote({Host, Port, Enable}) of
         {ok, Remote} ->
@@ -202,8 +206,8 @@ starttls(#client{socket = Socket} = Client, Host, _Port) ->
     Tls = [{cacertfile, CertFile},
            {cert, certfile_to_cert(make_proxy:get_cert_pem(NewHost))},
            {keyfile, KeyFile}],
+    ranch_tcp:setopts(Socket, [{active, false}]),
     {ok, TLSSocket} = ssl:handshake(Socket, Tls),
-    ok = ssl:setopts(TLSSocket, [{active, once}]),
     upgrade_to_tls(Client#client{socket = TLSSocket,
                                  transport = ssl,
                                  ok = ssl,

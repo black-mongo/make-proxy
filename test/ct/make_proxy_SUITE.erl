@@ -2,10 +2,13 @@
 
 -include("make_proxy_ct.hrl").
 
+-include_lib("kernel/include/logger.hrl").
+
 -compile(export_all).
 
 all() ->
-    [check_http_parse, socks, http].
+    %%    [websocket].
+    [check_http_parse, socks, http, https, websocket].
 
 init_per_suite(Config) ->
     {ok, _} = application:ensure_all_started(make_proxy),
@@ -80,8 +83,76 @@ http(_) ->
     {ok,
      <<"GET /ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>} =
         gen_tcp:recv(S, 0),
+    ok = gen_tcp:close(S),
     Server ! close,
     ok.
+
+https(_) ->
+    Pid = self(),
+    Server = erlang:spawn_link(fun() -> start_https(Pid) end),
+    receive
+        done ->
+            ok
+    end,
+    Send1 =
+        <<"GET /ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>,
+    {ok, C} = ssl:connect("localhost", 8890, [binary, {active, false}], 1000),
+    ok = ssl:send(C, Send1),
+    {ok, Send1} = ssl:recv(C, erlang:size(Send1), 500),
+    {ok, Send1} = ssl:recv(C, erlang:size(Send1), 500),
+    ok = ssl:close(C),
+    {ok, TlsSocket} = https_proxy_connect(<<"localhost:8890">>),
+    ok = ssl:send(TlsSocket, Send1),
+    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
+    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
+    ok = ssl:send(TlsSocket, Send1),
+    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
+    {ok, Send1} = ssl:recv(TlsSocket, 0, 500),
+    ok = ssl:send(TlsSocket, Send1),
+    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
+    {ok, Send1} = ssl:recv(TlsSocket, 0, 500),
+    ok = ssl:close(TlsSocket),
+    erlang:exit(Server, kill),
+    ok.
+
+websocket(_) ->
+    H =
+        <<"GET /websocket HTTP/1.1\r
+Sec-WebSocket-Version: 13\r
+Sec-WebSocket-Key: pKdxKYCNcdle4Dd3BBYqQg==\r
+Connection: Upgrade\r
+Upgrade: websocket\r
+Host: web.mchat.com\r\n\r\n">>,
+    {ok, TlsSocket} = https_proxy_connect(<<"web.mchat.com:443">>),
+    ok = ssl:send(TlsSocket, H),
+    {ok, <<"HTTP/1.1 101 Switching Protocols", _/binary>>} =
+        recv_loop(fun() -> ssl:recv(TlsSocket, 0, 1000) end),
+    Ping = cow_ws:masked_frame({text, <<"PING">>}, #{}),
+    {text, Json} = recv_websocket(fun() -> ssl:recv(TlsSocket, 0, 1000) end),
+    #{response_code := 200,
+      type := <<"session_id">>,
+      id := _} =
+        jsx:decode(Json, [return_maps, {labels, atom}]),
+    ok = ssl:send(TlsSocket, Ping),
+    {text, <<"PONG">>} = recv_websocket(fun() -> ssl:recv(TlsSocket, 0, 1000) end),
+    Ping1 = cow_ws:masked_frame({text, <<"PING">>}, #{}),
+    ok = ssl:send(TlsSocket, Ping1),
+    {text, <<"PONG">>} = recv_websocket(fun() -> ssl:recv(TlsSocket, 0, 1000) end),
+    ok = ssl:close(TlsSocket),
+    ok.
+
+https_proxy_connect(Host) ->
+    Port = application:get_env(make_proxy, client_port, 5222),
+    {ok, S} = gen_tcp:connect("127.0.0.1", Port, [binary, {active, false}]),
+    Send =
+        <<"CONNECT ",
+          Host/binary,
+          " HTTP/1.1\r\nHost: ",
+          Host/binary,
+          "\r\nProxy-Connection: keep-alive\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36\r\n\r\n">>,
+    ok = gen_tcp:send(S, Send),
+    {ok, <<"HTTP/1.1 200 OK\r\n\r\n">>} = gen_tcp:recv(S, 0, 1000),
+    {ok, _TlsSocket} = ssl:connect(S, [{reuse_sessions, true}]).
 
 match(Conn) ->
     receive
@@ -98,6 +169,86 @@ match(Conn, M) ->
             ok
     after 500 ->
         exit({match, timeout, M})
+    end.
+
+start_https(Pid) ->
+    erlang:spawn_link(fun() ->
+                         {_CertFile, KeyFile} = make_proxy:list_ca_file(),
+                         {ok, L} =
+                             ssl:listen(8890,
+                                        [{cert,
+                                          mp_client_http:certfile_to_cert(
+                                              make_proxy:get_cert_pem(<<"localhost">>))},
+                                         {keyfile, erlang:binary_to_list(KeyFile)},
+                                         {reuseaddr, true},
+                                         binary]),
+                         Pid ! done,
+                         accept_https(L)
+                      end).
+
+accept_https(L) ->
+    {ok, SS} = ssl:transport_accept(L),
+    Pid = spawn_link(fun() ->
+                        {ok, S} = ssl:handshake(SS),
+                        ok = ssl:setopts(S, [{active, true}]),
+                        loop_https(S, <<>>)
+                     end),
+    ok = ssl:controlling_process(SS, Pid),
+    accept_https(L).
+
+loop_https(S, Buffer) ->
+    receive
+        close ->
+            ok;
+        {ssl, _, Data} ->
+            case http_parse(<<Buffer/binary, Data/binary>>) of
+                {done, <<"GET /ping", _/binary>> = NewBuffer} ->
+                    ?LOG_INFO("https PING"),
+                    ok = ssl:send(S, NewBuffer),
+                    ok = ssl:send(S, NewBuffer),
+                    loop_https(S, <<>>);
+                {done, NewBuffer} ->
+                    ok = ssl:send(S, NewBuffer),
+                    loop_https(S, <<>>);
+                {more, NewBuffer} ->
+                    loop_https(S, NewBuffer);
+                {error, _R} ->
+                    ok = ssl:close(S)
+            end;
+        {ssl_closed, _} ->
+            ok
+    end.
+
+recv_websocket(Fun) ->
+    recv_websocket(Fun, <<>>).
+
+recv_websocket(Fun, Buffer) ->
+    {ok, Data} = Fun(),
+    NewBuffer = <<Buffer/binary, Data/binary>>,
+    case cow_ws:parse_header(NewBuffer, #{}, undefined) of
+        more ->
+            recv_websocket(Fun, NewBuffer);
+        {Type, _FragState2, Rsv, Len, MaskKey, Rest} ->
+            case cow_ws:parse_payload(Rest, MaskKey, 0, 0, Type, Len, undefined, #{}, Rsv) of
+                {ok, Payload, Utf8State2, <<>>} ->
+                    cow_ws:make_frame(Type, Payload, Utf8State2, undefine);
+                {ok, ClosedCode, Payload, _Utf8State2, <<>>} ->
+                    cow_ws:make_frame(Type, Payload, ClosedCode, undefine)
+            end;
+        error ->
+            exit({badframe})
+    end.
+
+recv_loop(Fun) ->
+    recv_loop(Fun, <<>>).
+
+recv_loop(Fun, Buffer) ->
+    {ok, Data} = Fun(),
+    case http_parse(<<Buffer/binary, Data/binary>>) of
+        {done, NewBuffer} ->
+            {ok, NewBuffer};
+        {more, NewBuffer} ->
+            recv_loop(Fun, NewBuffer)
     end.
 
 start_http() ->
@@ -151,6 +302,10 @@ do_http_parse({ok, {http_header, _, _, _, _}, Rest}, Data) ->
     do_http_parse(erlang:decode_packet(httph_bin, Rest, []), Data);
 do_http_parse({ok, {http_error, _}, _}, _Data) ->
     {error, http_error};
+do_http_parse({ok, {http_response, _, _, _}, Rest}, Data) ->
+    do_http_parse(erlang:decode_packet(httph_bin, Rest, []), Data);
+do_http_parse({ok, http_eoh, _Rest}, Data) ->
+    {done, Data};
 do_http_parse({error, R}, _Data) ->
     {error, R};
 do_http_parse({more, undefined}, Data) ->

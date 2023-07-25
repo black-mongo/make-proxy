@@ -40,7 +40,7 @@ maybe_gen_ca(Dir, _, _, CacertFile, CaKeyFile) ->
     persistent_term:put(ca_resource, Ref),
     ok.
 
-get_cert_pem(Host) ->
+get_cert_pem(Host) when is_binary(Host) ->
     Ref = persistent_term:get(ca_resource),
     ca:gen_cert_pem(Ref, Host).
 

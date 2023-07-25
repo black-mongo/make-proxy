@@ -114,8 +114,9 @@ handle_info({OK, Socket, Data},
         {ok, ProtocolHandler} ->
             State1 = State#client{protocol = ProtocolHandler},
             case ProtocolHandler:request(Data, State1) of
-                {ok, State2} ->
-                    ok = Transport:setopts(Socket, [{active, once}]),
+                {ok, #client{transport = Transport1, socket = Socket1} = State2} ->
+                    ?LOG_DEBUG("~p active_once", [Transport]),
+                    ok = Transport1:setopts(Socket1, [{active, once}]),
                     {noreply, State2};
                 {error, Reason} ->
                     {stop, Reason, State1}
@@ -131,6 +132,7 @@ handle_info({OK, Socket, Data},
                 State) ->
     case Protocol:request(Data, State) of
         {ok, State1} ->
+            ?LOG_DEBUG("~p active_once", [Transport]),
             ok = Transport:setopts(Socket, [{active, once}]),
             {noreply, State1};
         {error, Reason} ->
@@ -169,20 +171,20 @@ handle_info({TcpOrTls, Remote, Data},
         _ ->
             case Transport:send(Socket, RealData) of
                 ok ->
-                  ?Debug("~p send_to_client = ~p~n", [Transport, RealData]),
-                   ok;
+                    ?Debug("~p send_to_client = ~p~n", [Transport, RealData]),
+                    ok;
                 {error, closed} ->
-                  erlang:send(self(), {error, Socket, send_closed}),
-                  ?Debug("error closed ~p send_to_client = ~p~n", [Transport, RealData]),
+                    erlang:send(self(), {error, Socket, send_closed}),
+                    ?Debug("error closed ~p send_to_client = ~p~n", [Transport, RealData]),
                     ok
             end
     end,
-      case OK of
-      ssl ->
-      ok = ssl:setopts(Remote1, [{active, once}]);
-       _ ->
-       ok = inet:setopts(Remote1, [{active, once}])
-       end,
+    case OK of
+        ssl ->
+            ok = ssl:setopts(Remote1, [{active, once}]);
+        _ ->
+            ok = inet:setopts(Remote1, [{active, once}])
+    end,
     {noreply, S1};
 handle_info({Closed, Who} = R, #client{closed = Closed, socket = Who} = State) ->
     ?LOG_DEBUG("client stop = ~p, state = ~p", [R, State]),
