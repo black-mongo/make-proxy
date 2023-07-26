@@ -16,3 +16,28 @@
          content_length = 0 :: non_neg_integer(),
          current_length = 0 :: non_neg_integer(),
          next_data = <<>> :: binary()}).
+
+-type in() :: head | body | fin.
+-type event() :: {req, binary()} | {resp, binary()}.
+
+-define(TYPE_HTTP, 0).
+-define(TYPE_HTTP2, 1).
+-define(TYPE_WEBSOCKET, 2).
+
+-record(http_state,
+        {type = ?TYPE_HTTP :: integer(),
+         req_buffer = <<>> :: binary(),
+         req_buffer_rest = <<>> :: binary(),
+         req_headers = [] :: list(),
+         req_method = <<>> :: binary(),
+         req_path = <<>> :: binary(),
+         req_ver = 'HTTP/1.1' :: atom(),
+         req_len = 0 :: integer(),
+         req_payload = <<>> :: term(),
+         resp_status_line = {'HTTP/1.1', 200, <<"OK">>},
+         resp_headers = [] :: list(),
+         resp_len = 0 :: integer(),
+         resp_buffer = <<>> :: binary(),
+         resp_buffer_rest = <<>> :: binary(),
+         resp_payload = <<>> :: binary(),
+         in = head :: in()}).
