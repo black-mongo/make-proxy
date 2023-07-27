@@ -12,6 +12,8 @@
 
 -behaviour(gen_server).
 
+-include_lib("make_proxy/include/mp_http_request.hrl").
+
 %% API
 -export([start_link/3]).
 %% gen_server callbacks
@@ -106,7 +108,7 @@ handle_cast(_Request, State) ->
                      {stop, Reason :: term(), NewState :: #client{}}.
 handle_info({OK, Socket, Data},
             #client{socket = Socket,
-                    transport = Transport,
+                    transport = _Transport,
                     ok = OK,
                     protocol = undefined} =
                 State) ->
@@ -115,7 +117,6 @@ handle_info({OK, Socket, Data},
             State1 = State#client{protocol = ProtocolHandler},
             case ProtocolHandler:request(Data, State1) of
                 {ok, #client{transport = Transport1, socket = Socket1} = State2} ->
-                    ?LOG_DEBUG("~p active_once", [Transport]),
                     ok = Transport1:setopts(Socket1, [{active, once}]),
                     {noreply, State2};
                 {error, Reason} ->
@@ -132,7 +133,6 @@ handle_info({OK, Socket, Data},
                 State) ->
     case Protocol:request(Data, State) of
         {ok, State1} ->
-            ?LOG_DEBUG("~p active_once", [Transport]),
             ok = Transport:setopts(Socket, [{active, once}]),
             {noreply, State1};
         {error, Reason} ->
@@ -143,6 +143,7 @@ handle_info({TcpOrTls, Remote, Data},
                     protocol = Handle,
                     transport = Transport,
                     remote = Remote,
+                    handle_state = HandleState,
                     enable_https = Https} =
                 State)
     when TcpOrTls == tcp; TcpOrTls == ssl ->
@@ -163,7 +164,25 @@ handle_info({TcpOrTls, Remote, Data},
             true ->
                 Handle:response(RealData, State);
             _ ->
-                {ok, State, false}
+                case Handle of
+                    mp_client_http ->
+                        {ok,
+                         #http_state{resp_headers = Headers, resp_payload = Payload} =
+                             NewHandleState} =
+                            make_proxy_http:handle({resp, RealData}, HandleState),
+                        NewHandleState1 =
+                            case Payload /= <<>> of
+                                true ->
+                                    ?Debug("resp heanders = ~p~n, payload = ~p",
+                                           [Headers, Payload]),
+                                    NewHandleState#http_state{resp_payload = <<>>};
+                                _ ->
+                                    NewHandleState
+                            end,
+                        {ok, State#client{handle_state = NewHandleState1}, false};
+                    _ ->
+                        {ok, State}
+                end
         end,
     case Sended of
         true ->
@@ -171,7 +190,7 @@ handle_info({TcpOrTls, Remote, Data},
         _ ->
             case Transport:send(Socket, RealData) of
                 ok ->
-                    ?Debug("~p send_to_client = ~p~n", [Transport, RealData]),
+                    %%                    ?Debug("~p send_to_client = ~p~n", [Transport, RealData]),
                     ok;
                 {error, closed} ->
                     erlang:send(self(), {error, Socket, send_closed}),

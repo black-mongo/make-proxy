@@ -19,7 +19,8 @@
 detect_head(H) ->
     lists:member(H, ?HTTP_METHOD_HEAD).
 
-request(Data, #client{remote = undefined, buffer = Buffer} = State) ->
+request(Data, #client{remote = undefined, buffer = Buffer} = State0) ->
+    State = State0#client{handle_state = erlang:element(2, make_proxy_http:init([]))},
     Data1 = <<Buffer/binary, Data/binary>>,
     {Data2, Req} = parse_http_request(Data1),
     ?Debug("request => ~p~n", [Data1]),
@@ -37,18 +38,31 @@ request(Data, #client{remote = Remote, keep_alive = false} = State) ->
 request(Data,
         #client{key = _Key,
                 remote = Remote,
+                handle_state = HandleState,
                 keep_alive = true,
                 enable_https = Https} =
             State) ->
     case Https of
         true ->
-            ?Debug("ssl request = ~p", [Data]),
-            ok = ssl:send(Remote, Data);
+            %%       ?Debug("ssl request = ~p", [Data]),
+            {ok,
+             #http_state{req_in = ReqIn,
+                         req_headers = Headers,
+                         req_payload = Payload} =
+                 NewHandleState} =
+                make_proxy_http:handle({req, Data}, HandleState),
+            case ReqIn of
+                fin ->
+                    ?Debug("SSL request henader = ~p, payload = ~p", [Headers, Payload]);
+                _ ->
+                    ok
+            end,
+            ok = ssl:send(Remote, Data),
+            {ok, State#client{handle_state = NewHandleState}};
         _ ->
-            %%           ok = gen_tcp:send(Remote, mp_crypto:encrypt(Key, Data))
-            ok = gen_tcp:send(Remote, Data)
-    end,
-    {ok, State}.
+            ok = gen_tcp:send(Remote, Data),
+            {ok, State}
+    end.
 
 -spec do_communication(binary(), #http_request{}, #client{}) ->
                           {ok, #client{}} | {error, term()}.

@@ -21,7 +21,7 @@ init(_) ->
 
 %% @doc http request
 -spec handle(event(), #http_state{}) -> {ok, #http_state{}}.
-handle({req, Data}, #http_state{in = head, req_buffer = Buffer} = State) ->
+handle({req, Data}, #http_state{req_in = head, req_buffer = Buffer} = State) ->
     NewBuffer = <<Buffer/binary, Data/binary>>,
     case binary:match(NewBuffer, <<"\r\n\r\n">>) of
         nomatch ->
@@ -31,7 +31,7 @@ handle({req, Data}, #http_state{in = head, req_buffer = Buffer} = State) ->
                 {ok, {Method, Path, Version}, Headers, Rest, ?TYPE_HTTP = Type} ->
                     PayloadLen =
                         erlang:binary_to_integer(
-                            proplists:get_value(<<"content-length">>, Headers)),
+                            proplists:get_value(<<"content-length">>, Headers, <<"0">>)),
                     {IN, ReqPayload, Rest1} = parse_http_body(PayloadLen, Rest),
                     {ok,
                      State#http_state{req_method = Method,
@@ -40,7 +40,7 @@ handle({req, Data}, #http_state{in = head, req_buffer = Buffer} = State) ->
                                       type = Type,
                                       req_buffer = NewBuffer,
                                       req_len = PayloadLen,
-                                      in = IN,
+                                      req_in = IN,
                                       req_payload = ReqPayload,
                                       req_headers = Headers,
                                       req_buffer_rest = Rest1}};
@@ -51,7 +51,7 @@ handle({req, Data}, #http_state{in = head, req_buffer = Buffer} = State) ->
                                       req_path = Path,
                                       req_ver = Version,
                                       type = Type,
-                                      in = IN,
+                                      req_in = IN,
                                       req_buffer = NewBuffer,
                                       req_headers = Headers,
                                       req_payload = ReqPayload,
@@ -61,7 +61,7 @@ handle({req, Data}, #http_state{in = head, req_buffer = Buffer} = State) ->
             end
     end;
 handle({req, Data},
-       #http_state{in = body,
+       #http_state{req_in = body,
                    req_len = PayloadLen,
                    req_buffer = Buffer,
                    req_buffer_rest = Rest,
@@ -71,12 +71,12 @@ handle({req, Data},
     NewRest = <<Rest/binary, Data/binary>>,
     {IN, ReqPayload, Rest1} = parse_http_body(PayloadLen, NewRest),
     {ok,
-     State#http_state{in = IN,
+     State#http_state{req_in = IN,
                       req_payload = ReqPayload,
                       req_buffer_rest = Rest1,
                       req_buffer = NewBuffer}};
 handle({req, Data},
-       #http_state{in = body,
+       #http_state{req_in = body,
                    req_buffer = Buffer,
                    req_buffer_rest = Rest,
                    type = ?TYPE_WEBSOCKET} =
@@ -86,26 +86,37 @@ handle({req, Data},
     {In, ReqPayload, Rest1} = parse_frame(NewRest),
     {ok,
      State#http_state{req_buffer = NewBuffer,
-                      in = In,
+                      req_in = In,
                       req_payload = ReqPayload,
                       req_buffer_rest = Rest1}};
-handle({req, Data}, #http_state{in = fin, type = ?TYPE_WEBSOCKET} = State) ->
+handle({req, Data}, #http_state{req_in = fin, type = ?TYPE_HTTP} = State) ->
     handle({req, Data},
-           State#http_state{in = body,
+           State#http_state{req_in = head,
                             req_payload = <<>>,
                             req_buffer_rest = <<>>,
                             req_buffer = <<>>});
+handle({req, Data}, #http_state{req_in = fin, type = ?TYPE_WEBSOCKET} = State) ->
+    handle({req, Data},
+           State#http_state{req_in = body,
+                            req_payload = <<>>,
+                            req_buffer = <<>>});
 %% @doc http response
-handle({resp, Data}, #http_state{in = head, resp_buffer = Buffer} = State) ->
+handle({resp, Data}, #http_state{resp_in = head, resp_buffer = Buffer} = State) ->
     NewBuffer = <<Buffer/binary, Data/binary>>,
     case binary:match(NewBuffer, <<"\r\n\r\n">>) of
         nomatch ->
             {ok, State#http_state{resp_buffer = NewBuffer}};
         _ ->
             case parse_resp_head(NewBuffer) of
-                {ok, {Ver, Status, String}, Headers, Rest, ?TYPE_HTTP = Type} ->
-                    Len = erlang:binary_to_integer(
-                              proplists:get_value(<<"content-length">>, Headers)),
+                {ok, {Ver, Status, String}, Headers, Rest, ?TYPE_HTTP = Type, body_chunked} ->
+                    NewS =
+                        State#http_state{resp_buffer = NewBuffer,
+                                         resp_in = body_chunked,
+                                         resp_status_line = {Ver, Status, String},
+                                         resp_headers = Headers,
+                                         type = Type},
+                    parse_chunked(Rest, NewS);
+                {ok, {Ver, Status, String}, Headers, Rest, ?TYPE_HTTP = Type, {body, Len}} ->
                     {IN, Payload, Rest1} = parse_http_body(Len, Rest),
                     {ok,
                      State#http_state{resp_buffer = NewBuffer,
@@ -113,7 +124,7 @@ handle({resp, Data}, #http_state{in = head, resp_buffer = Buffer} = State) ->
                                       resp_status_line = {Ver, Status, String},
                                       resp_payload = Payload,
                                       resp_headers = Headers,
-                                      in = IN,
+                                      resp_in = IN,
                                       resp_len = Len,
                                       type = Type}};
                 {ok, {Ver, Status, String}, Headers, Rest, ?TYPE_WEBSOCKET = Type} ->
@@ -124,12 +135,12 @@ handle({resp, Data}, #http_state{in = head, resp_buffer = Buffer} = State) ->
                                       resp_headers = Headers,
                                       resp_status_line = {Ver, Status, String},
                                       resp_payload = Payload,
-                                      in = IN,
+                                      resp_in = IN,
                                       type = Type}}
             end
     end;
 handle({resp, Data},
-       #http_state{in = body,
+       #http_state{resp_in = body,
                    resp_buffer = Buffer,
                    resp_len = Len,
                    resp_buffer_rest = Rest,
@@ -139,12 +150,12 @@ handle({resp, Data},
     NewRest = <<Rest/binary, Data/binary>>,
     {IN, Payload, Rest1} = parse_http_body(Len, NewRest),
     {ok,
-     State#http_state{in = IN,
+     State#http_state{resp_in = IN,
                       resp_buffer = NewBuffer,
                       resp_payload = Payload,
                       resp_buffer_rest = Rest1}};
 handle({resp, Data},
-       #http_state{in = body,
+       #http_state{resp_in = body,
                    resp_buffer = Buffer,
                    resp_buffer_rest = Rest,
                    type = ?TYPE_WEBSOCKET} =
@@ -153,14 +164,27 @@ handle({resp, Data},
     NewRest = <<Rest/binary, Data/binary>>,
     {IN, Payload, Rest1} = parse_frame(NewRest),
     {ok,
-     State#http_state{in = IN,
+     State#http_state{resp_in = IN,
                       resp_buffer = NewBuffer,
                       resp_payload = Payload,
                       resp_buffer_rest = Rest1}};
-handle({resp, Data}, #http_state{in = fin} = State) ->
+handle({resp, Data},
+       #http_state{resp_in = body_chunked,
+                   resp_buffer = Buffer,
+                   resp_buffer_rest = Rest,
+                   type = ?TYPE_HTTP} =
+           State) ->
+    NewBuffer = <<Buffer/binary, Data/binary>>,
+    NewRest = <<Rest/binary, Data/binary>>,
+    parse_chunked(NewRest, State#http_state{resp_buffer = NewBuffer});
+handle({resp, Data}, #http_state{resp_in = fin, type = ?TYPE_HTTP} = State) ->
     handle({resp, Data},
-           State#http_state{in = body,
-                            resp_buffer_rest = <<>>,
+           State#http_state{resp_in = head,
+                            resp_buffer = <<>>,
+                            resp_payload = <<>>});
+handle({resp, Data}, #http_state{resp_in = fin, type = ?TYPE_WEBSOCKET} = State) ->
+    handle({resp, Data},
+           State#http_state{resp_in = body,
                             resp_buffer = <<>>,
                             resp_payload = <<>>}).
 
@@ -188,10 +212,10 @@ parse_frame(Rest) ->
                     {body, <<>>, Rest};
                 {more, _, _} ->
                     {body, <<>>, Rest};
-                {ok, Payload, Utf8State2, <<>>} ->
-                    {fin, cow_ws:make_frame(Type, Payload, Utf8State2, undefine), <<>>};
-                {ok, ClosedCode, Payload, _Utf8State2, <<>>} ->
-                    {fin, cow_ws:make_frame(Type, Payload, ClosedCode, undefine), <<>>}
+                {ok, Payload, Utf8State2, Rest2} ->
+                    {fin, cow_ws:make_frame(Type, Payload, Utf8State2, undefine), Rest2};
+                {ok, ClosedCode, Payload, _Utf8State2, Rest2} ->
+                    {fin, cow_ws:make_frame(Type, Payload, ClosedCode, undefine), Rest2}
             end
     end.
 
@@ -210,5 +234,71 @@ parse_resp_head(Data) ->
         101 ->
             {ok, {Ver, Status, String}, Headers, Rest1, ?TYPE_WEBSOCKET};
         _ ->
-            {ok, {Ver, Status, String}, Headers, Rest1, ?TYPE_HTTP}
+            {ok,
+             {Ver, Status, String},
+             Headers,
+             Rest1,
+             ?TYPE_HTTP,
+             response_io_from_headers(Ver, Status, Headers)}
+    end.
+
+response_io_from_headers(Version, _Status, Headers) ->
+    case lists:keyfind(<<"transfer-encoding">>, 1, Headers) of
+        {_, TE} when Version =:= 'HTTP/1.1' ->
+            L = cow_http_hd:parse_transfer_encoding(TE),
+            case lists:member(<<"chunked">>, L) of
+                true ->
+                    body_chunked;
+                _ when [<<"identity">>] == L ->
+                    {body, 0}
+            end;
+        _ ->
+            case lists:keyfind(<<"content-length">>, 1, Headers) of
+                {_, <<"0">>} ->
+                    {body, 0};
+                {_, Length} ->
+                    {body, cow_http_hd:parse_content_length(Length)};
+                _ ->
+                    {body, 0}
+            end
+    end.
+
+parse_chunked(Data, #http_state{resp_headers = Headers} = S) ->
+    case cow_http_te:stream_chunked(Data, {0, 0}) of
+        more ->
+            {ok, S#http_state{resp_buffer_rest = Data}};
+        {more, _C, _ChunkedS} ->
+            {ok, S#http_state{resp_buffer_rest = Data}};
+        %%      {ok, S#http_state{resp_chunked_state = ChunkedS, resp_payload = C, resp_buffer_rest = <<>>}};
+        {more, C, Len, ChunkedS} when Len == 0 ->
+            {ok,
+             S#http_state{resp_chunked_state = ChunkedS,
+                          resp_payload = C,
+                          resp_buffer_rest = <<>>}};
+        {more, _C, Len, ChunkedS} when is_integer(Len) ->
+            {ok, S#http_state{resp_buffer_rest = Data, resp_chunked_state = ChunkedS}};
+        {more, C, Rest, ChunkedS} ->
+            {ok,
+             S#http_state{resp_chunked_state = ChunkedS,
+                          resp_payload = C,
+                          resp_buffer_rest = Rest}};
+        {done, no_trailers, <<>>} ->
+            {ok, S#http_state{resp_in = fin, resp_buffer_rest = <<>>}};
+        {done, C, no_trailers, <<>>} ->
+            {ok,
+             S#http_state{resp_payload = C,
+                          resp_buffer_rest = <<>>,
+                          resp_in = fin}};
+        {done, C, trailers, Rest} ->
+            case binary:match(Rest, <<"\r\n\r\n">>) of
+                nomatch ->
+                    {ok, S#http_state{resp_buffer_rest = Data}};
+                _ ->
+                    {Trailer, <<>>} = cow_http:parse_headers(Rest),
+                    {ok,
+                     S#http_state{resp_payload = C,
+                                  resp_buffer_rest = <<>>,
+                                  resp_headers = Headers ++ Trailer,
+                                  resp_in = fin}}
+            end
     end.
