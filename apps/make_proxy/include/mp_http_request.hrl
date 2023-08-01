@@ -25,7 +25,9 @@
 -define(TYPE_WEBSOCKET, 2).
 
 -record(http_state,
-        {type = ?TYPE_HTTP :: integer(),
+        {
+         id = make_ref():: reference(),
+         type = ?TYPE_HTTP :: integer(),
          req_buffer = <<>> :: binary(),
          req_buffer_rest = <<>> :: binary(),
          req_headers = [] :: list(),
@@ -43,3 +45,5 @@
          resp_payload = <<>> :: binary(),
          resp_in = head :: in(),
          resp_chunked_state = {0, 0} :: tuple()}).
+
+-define(TOPIC_PAYLOAD, "topic:payload").

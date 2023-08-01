@@ -175,6 +175,7 @@ handle_info({TcpOrTls, Remote, Data},
                                 true ->
                                     ?Debug("resp heanders = ~p~n, payload = ~p",
                                            [Headers, Payload]),
+                                    ebus:pub(?TOPIC_PAYLOAD, {?TOPIC_PAYLOAD, resp, NewHandleState}),
                                     NewHandleState#http_state{resp_payload = <<>>};
                                 _ ->
                                     NewHandleState
