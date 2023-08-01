@@ -53,6 +53,7 @@ request(Data,
                 make_proxy_http:handle({req, Data}, HandleState),
             case ReqIn of
                 fin ->
+                    ebus:pub(?TOPIC_PAYLOAD, {?TOPIC_PAYLOAD, req, NewHandleState}),
                     ?Debug("SSL request henader = ~p, payload = ~p", [Headers, Payload]);
                 _ ->
                     ok
