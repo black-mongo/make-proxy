@@ -240,8 +240,8 @@ handle_info(timeout, #client{ref = Ref, transport = Transport} = State) ->
             {ok, Socket} = ranch:handshake(Ref),
             {ok, Key} = application:get_env(make_proxy, key),
             {OK, Closed, Error} = case Transport:messages() of
-              {OK, Closed, Error, _} -> {OK, Closed, Error};
-              {OK, Closed, Error} -> {OK, Closed, Error}
+              {OK0, Closed0, Error0, _} -> {OK0, Closed0, Error0};
+              {OK0, Closed0, Error0} -> {OK0, Closed0, Error0}
             end,
             ok = Transport:setopts(Socket, [binary, {active, once}, {packet, raw}]),
             erase(init),
