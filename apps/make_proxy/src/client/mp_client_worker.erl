@@ -15,7 +15,7 @@
 -include_lib("make_proxy/include/mp_http_request.hrl").
 
 %% API
--export([start_link/3]).
+-export([start_link/3, start_link/4]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -33,6 +33,9 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link(Ref, Transport, Opts) ->
+    gen_server:start_link(?MODULE, [Ref, Transport, Opts], []).
+
+start_link(Ref, _Socket, Transport, Opts) ->
     gen_server:start_link(?MODULE, [Ref, Transport, Opts], []).
 
 %%%===================================================================
@@ -58,7 +61,10 @@ start_link(Ref, Transport, Opts) ->
 init([Ref, Transport, _Opts]) ->
     put(init, true),
     {ok, #client{ref = Ref, transport = Transport}, 0}.
-
+%%init([Ref, Transport, _Opts = []]) ->
+%%  %% Perform any required state initialization here.
+%%  {ok, Socket} = ranch:handshake(Ref),
+%%  ok = Transport:setopts(Socket, [{active, once}]),
 %%--------------------------------------------------------------------
 %% @private
 %% @doc
@@ -233,7 +239,10 @@ handle_info(timeout, #client{ref = Ref, transport = Transport} = State) ->
             % init
             {ok, Socket} = ranch:handshake(Ref),
             {ok, Key} = application:get_env(make_proxy, key),
-            {OK, Closed, Error, _} = Transport:messages(),
+            {OK, Closed, Error} = case Transport:messages() of
+              {OK, Closed, Error, _} -> {OK, Closed, Error};
+              {OK, Closed, Error} -> {OK, Closed, Error}
+            end,
             ok = Transport:setopts(Socket, [binary, {active, once}, {packet, raw}]),
             erase(init),
             {noreply,
