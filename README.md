@@ -9,8 +9,8 @@ Required
 -----
 
 ```shell
-$ rebar3 -v
- rebar 3.14.4 on Erlang/OTP 22 Erts 10.7.2.1
+$ ./rebar3 -v
+rebar 3.22.1 on Erlang/OTP 26 Erts 14.0.2
  ```
 
 Build
