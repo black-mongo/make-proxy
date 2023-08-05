@@ -45,5 +45,5 @@
          resp_payload = <<>> :: binary(),
          resp_in = head :: in(),
          resp_chunked_state = {0, 0} :: tuple()}).
-
--define(TOPIC_PAYLOAD, "topic:payload").
+-define(RD_HTTP_STATE, record_info(fields, http_state)).
+-define(TOPIC_PAYLOAD, <<"topic:payload">>).

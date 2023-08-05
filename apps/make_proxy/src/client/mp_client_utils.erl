@@ -9,9 +9,9 @@
 -module(mp_client_utils).
 
 -author("wang").
-
+-include_lib("make_proxy/include/mp_http_request.hrl").
 %% API
--export([connect_to_remote/1, connect_to_remote/0]).
+-export([connect_to_remote/1, connect_to_remote/0, http_state_to_map/1]).
 
 connect_to_remote({Host, Port, true}) when Port /= 80 ->
     CaCerts =
@@ -40,3 +40,7 @@ connect_to_remote() ->
     {ok, RemotePort} = application:get_env(make_proxy, server_port),
     {ok, Addr} = inet:getaddr(RemoteAddr, inet),
     gen_tcp:connect(Addr, RemotePort, [binary, {active, once}, {packet, 4}]).
+
+http_state_to_map(Record) ->
+    L = ?RD_HTTP_STATE,
+    maps:from_list(lists:zip([ name | L], erlang:tuple_to_list(Record))).
