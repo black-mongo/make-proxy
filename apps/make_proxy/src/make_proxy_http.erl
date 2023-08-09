@@ -14,10 +14,13 @@
 -include_lib("kernel/include/logger.hrl").
 
 %% API
--export([init/1, handle/2]).
+-export([init/1, handle/2, update_counter/1]).
 
 init(_) ->
-    {ok, #http_state{}}.
+    {ok, #http_state{id = update_counter(http_state_id)}}.
+
+update_counter(Name) ->
+    ets:update_counter(make_proxy_counters, Name, 1, {Name, 0}).
 
 %% @doc http request
 -spec handle(event(), #http_state{}) -> {ok, #http_state{}}.

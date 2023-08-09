@@ -26,7 +26,7 @@
 
 -record(http_state,
         {
-         id = make_ref():: reference(),
+         id = 0 :: integer(),
          type = ?TYPE_HTTP :: integer(),
          req_buffer = <<>> :: binary(),
          req_buffer_rest = <<>> :: binary(),
