@@ -166,7 +166,15 @@ process_tls(_, _, State) ->
 
 %% proxy start tls
 starttls(#client{socket = Socket} = Client) ->
-    {ok, Tls} = application:get_env(make_proxy, tls),
+   Tls = case application:get_env(make_proxy, tls) of
+         undefined -> 
+           {CertFile, KeyFile} = make_proxy:list_ca_file(),
+          [{cacertfile, CertFile},
+           {cert, get_certs([<<"*.example.com">>, <<"localhost">>])},
+           {keyfile, KeyFile}];
+         {ok, Tls0} ->
+            Tls0
+    end,
     {ok, TLSSocket} = ssl:handshake(Socket, Tls),
     ok = ssl:setopts(TLSSocket, [{active, once}]),
     upgrade_to_tls(Client#client{socket = TLSSocket,
@@ -174,9 +182,12 @@ starttls(#client{socket = Socket} = Client) ->
                                  ok = ssl,
                                  closed = ssl_closed}).
 
+get_certs(L) ->
+[mp_client_http:certfile_to_cert(make_proxy:get_cert_pem(Host)) || Host <- L].
+
 %% remote socket upgrade to tls
 upgrade_to_tls(#client{remote = Remote} = S) ->
-    {ok, TlsSocket} = ssl:connect(Remote, [{reuse_sessions, true}]),
+    {ok, TlsSocket} = ssl:connect(Remote, [{reuse_sessions, true},{verify, verify_none}]),
     S#client{handle_state = #{}, remote = TlsSocket}.
 
 to_binary(Value) ->
