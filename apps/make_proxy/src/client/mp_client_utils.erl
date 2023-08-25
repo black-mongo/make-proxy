@@ -26,7 +26,7 @@ connect_to_remote({Host, Port, true}) when Port /= 80 ->
                 Port,
                 [binary,
                  {active, once},
-                 %%                 {verify, verify_peer},
+                 {verify, verify_none},
                  {depth, 99},
                  {cacertfile, CaCerts}]);
 connect_to_remote({Host, Port, _}) ->

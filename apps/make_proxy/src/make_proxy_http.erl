@@ -206,19 +206,32 @@ parse_type(_Version, Headers) ->
     end.
 
 parse_frame(Rest) ->
+  case do_parse_frame(Rest, []) of
+    {body, Frames, NewRest} ->
+      {body, Frames, NewRest};
+    {fin, Frames, NewRest} ->
+      {fin, Frames, NewRest}
+  end.
+do_parse_frame({body, Acc, Rest}) when Acc == [] ->
+  {body, [], Rest};
+do_parse_frame({body, Acc, Rest}) ->
+  {fin, Acc, Rest}.
+do_parse_frame(<<>>, Acc) ->
+  {fin, lists:reverse(Acc), <<>>};
+do_parse_frame(Rest, Acc) ->
     case cow_ws:parse_header(Rest, #{}, undefined) of
         more ->
             {body, <<>>, Rest};
         {Type, _FragState2, Rsv, Len, MaskKey, Rest1} ->
             case cow_ws:parse_payload(Rest1, MaskKey, 0, 0, Type, Len, undefined, #{}, Rsv) of
                 {more, _, _, _} ->
-                    {body, <<>>, Rest};
+                    do_parse_frame({body, Acc, Rest});
                 {more, _, _} ->
-                    {body, <<>>, Rest};
+                    do_parse_frame({body, Acc, Rest});
                 {ok, Payload, Utf8State2, Rest2} ->
-                    {fin, cow_ws:make_frame(Type, Payload, Utf8State2, undefine), Rest2};
+                    do_parse_frame(Rest2, [cow_ws:make_frame(Type, Payload, Utf8State2, undefine) | Acc]);
                 {ok, ClosedCode, Payload, _Utf8State2, Rest2} ->
-                    {fin, cow_ws:make_frame(Type, Payload, ClosedCode, undefine), Rest2}
+                  do_parse_frame(Rest2, [cow_ws:make_frame(Type, Payload, ClosedCode, undefine) | Acc])
             end
     end.
 

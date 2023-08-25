@@ -46,13 +46,13 @@ request(Data,
         true ->
             %%       ?Debug("ssl request = ~p", [Data]),
             {ok,
-             #http_state{req_in = ReqIn,
+             #http_state{req_in = _ReqIn,
                          req_headers = Headers,
                          req_payload = Payload} =
                  NewHandleState} =
                 make_proxy_http:handle({req, Data}, HandleState),
-            case ReqIn of
-                fin ->
+            case Payload /= <<>> of
+                true ->
                     ebus:pub(?TOPIC_PAYLOAD, {?TOPIC_PAYLOAD, req, mp_client_utils:http_state_to_map(NewHandleState)}),
                     ?Debug("SSL request henader = ~p, payload = ~p", [Headers, Payload]);
                 _ ->
@@ -217,9 +217,9 @@ starttls(#client{socket = Socket} = Client, Host, _Port) ->
     %%    Tls = [],
     % {ok, Tls} = application:get_env(make_proxy, tls),
     {CertFile, KeyFile} = make_proxy:list_ca_file(),
-    NewHost = change_host(Host),
+%%    NewHost = change_host(Host),
     Tls = [{cacertfile, CertFile},
-           {cert, certfile_to_cert(make_proxy:get_cert_pem(NewHost))},
+           {cert, certfile_to_cert(make_proxy:get_cert_pem(erlang:list_to_binary(Host)))},
            {keyfile, KeyFile}],
     ranch_tcp:setopts(Socket, [{active, false}]),
     {ok, TLSSocket} = ssl:handshake(Socket, Tls),
@@ -236,18 +236,6 @@ upgrade_to_tls(#client{remote = Remote} = S) ->
 certfile_to_cert(CertData) ->
     [{_, Der, _}] = public_key:pem_decode(CertData),
     Der.
-
-change_host(Host) ->
-    case binary:split(
-             erlang:list_to_binary(Host), <<".">>, [global])
-    of
-        [_, B, C] ->
-            <<"*.", B/binary, ".", C/binary>>;
-        [B, C] ->
-            <<B/binary, ".", C/binary>>;
-        _ ->
-            erlang:list_to_binary(Host)
-    end.
 
 remove_prefix(Host) ->
     case binary:split(
