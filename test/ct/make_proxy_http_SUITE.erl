@@ -264,4 +264,12 @@ transfer_encoding(_) ->
                  resp_headers = Headers}} =
         make_proxy_http:handle({resp, <<"\r\n\r\n">>}, SS3),
     ?assertEqual(true, lists:member({<<"a">>, <<"a">>}, Headers)),
+
+     {ok,
+     #http_state{resp_in = fin,
+                 resp_payload = <<"1234">>,
+                 resp_buffer_rest = <<>>,
+                 resp_headers = Headers}} =
+        make_proxy_http:handle({resp, <<H/binary, "1\r\na\r\n2\r\nab\r\n3\r\nabc\r\n0\r\n\r\n">>}, S),
+
     ok.

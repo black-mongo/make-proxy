@@ -76,12 +76,13 @@ http(_) ->
     Send =
         <<"GET http://127.0.0.1:8889/ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>,
     ok = gen_tcp:send(S, Send),
+    Rec = <<"HTTP/1.1 200 OK\r\nContent-Length:4\r\n\r\nPONG">>,
     {ok,
-     <<"GET /ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>} =
+        Rec} =
         gen_tcp:recv(S, 0),
     ok = gen_tcp:send(S, Send),
     {ok,
-     <<"GET /ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>} =
+        Rec} =
         gen_tcp:recv(S, 0),
     ok = gen_tcp:close(S),
     Server ! close,
@@ -96,21 +97,18 @@ https(_) ->
     end,
     Send1 =
         <<"GET /ping HTTP/1.1\r\nContent-Type:application/json\r\nContent-Length:4\r\n\r\nPING">>,
-    {ok, C} = ssl:connect("localhost", 8890, [binary, {active, false}], 1000),
+    {ok, C} = ssl:connect("localhost", 8890, [binary, {active, false}, {verify, verify_none}], 1000),
+    Rec = <<"HTTP/1.1 200 OK\r\nContent-Length:4\r\n\r\nPONG">>,
     ok = ssl:send(C, Send1),
-    {ok, Send1} = ssl:recv(C, erlang:size(Send1), 500),
-    {ok, Send1} = ssl:recv(C, erlang:size(Send1), 500),
+    {ok, Rec} = ssl:recv(C, erlang:size(Rec), 500),
     ok = ssl:close(C),
     {ok, TlsSocket} = https_proxy_connect(<<"localhost:8890">>),
     ok = ssl:send(TlsSocket, Send1),
-    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
-    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
+    {ok, Rec} = ssl:recv(TlsSocket, erlang:size(Rec), 500),
     ok = ssl:send(TlsSocket, Send1),
-    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
-    {ok, Send1} = ssl:recv(TlsSocket, 0, 500),
+    {ok, Rec} = ssl:recv(TlsSocket, 0, 500),
     ok = ssl:send(TlsSocket, Send1),
-    {ok, Send1} = ssl:recv(TlsSocket, erlang:size(Send1), 500),
-    {ok, Send1} = ssl:recv(TlsSocket, 0, 500),
+    {ok, Rec} = ssl:recv(TlsSocket, erlang:size(Rec), 500),
     ok = ssl:close(TlsSocket),
     erlang:exit(Server, kill),
     ok.
@@ -152,7 +150,7 @@ https_proxy_connect(Host) ->
           "\r\nProxy-Connection: keep-alive\r\nUser-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36\r\n\r\n">>,
     ok = gen_tcp:send(S, Send),
     {ok, <<"HTTP/1.1 200 OK\r\n\r\n">>} = gen_tcp:recv(S, 0, 1000),
-    {ok, _TlsSocket} = ssl:connect(S, [{reuse_sessions, true}]).
+    {ok, _TlsSocket} = ssl:connect(S, [{reuse_sessions, true}, {verify,verify_none}]).
 
 match(Conn) ->
     receive
@@ -202,13 +200,12 @@ loop_https(S, Buffer) ->
             ok;
         {ssl, _, Data} ->
             case http_parse(<<Buffer/binary, Data/binary>>) of
-                {done, <<"GET /ping", _/binary>> = NewBuffer} ->
+                {done, <<"GET /ping", _/binary>>} ->
                     ?LOG_INFO("https PING"),
-                    ok = ssl:send(S, NewBuffer),
-                    ok = ssl:send(S, NewBuffer),
+                    ok = ssl:send(S, <<"HTTP/1.1 200 OK\r\nContent-Length:4\r\n\r\nPONG">>),
                     loop_https(S, <<>>);
-                {done, NewBuffer} ->
-                    ok = ssl:send(S, NewBuffer),
+                {done, _NewBuffer} ->
+                    ok = ssl:send(S, <<"HTTP/1.1 200 OK\r\nContent-Length:4\r\n\r\nPONG">>),
                     loop_https(S, <<>>);
                 {more, NewBuffer} ->
                     loop_https(S, NewBuffer);
@@ -269,7 +266,7 @@ loop(S, Buffer) ->
             case http_parse(<<Buffer/binary, Data/binary>>) of
                 {done, NewBuffer} ->
                     logger:debug("http_loop ==> ~p~n", [NewBuffer]),
-                    ok = gen_tcp:send(S, NewBuffer),
+                    ok = gen_tcp:send(S, <<"HTTP/1.1 200 OK\r\nContent-Length:4\r\n\r\nPONG">>),
                     loop(S, <<>>);
                 {more, NewBuffer} ->
                     loop(S, NewBuffer);

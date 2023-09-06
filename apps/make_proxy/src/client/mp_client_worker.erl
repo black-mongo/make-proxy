@@ -188,7 +188,7 @@ handle_info({TcpOrTls, Remote, Data},
                             end,
                         {ok, State#client{handle_state = NewHandleState1}, false};
                     _ ->
-                        {ok, State}
+                        {ok, State, false}
                 end
         end,
     case Sended of
