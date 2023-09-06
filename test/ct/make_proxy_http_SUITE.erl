@@ -96,7 +96,7 @@ Connection: upgrade\r\n\r\n">>,
     {ok, #http_state{resp_in = head, resp_buffer = <<"HTTP/1.1">>} = S1} =
         make_proxy_http:handle({resp, H1}, S),
     {ok,
-     #http_state{resp_in = body,
+     #http_state{
                  resp_buffer = Buffer,
                  resp_buffer_rest = <<>>,
                  type = ?TYPE_WEBSOCKET,
@@ -113,18 +113,19 @@ Connection: upgrade\r\n\r\n">>,
                  crypto:strong_rand_bytes(10), erlang:size(Data)),
          Part1 = binary:part(Data, {0, First}),
          Part2 = binary:part(Data, {First, erlang:size(Data) - First}),
-         {ok, #http_state{resp_in = body, resp_buffer_rest = Part1} = S3} =
+         {ok, #http_state{resp_buffer_rest = Part11} = S3} =
              make_proxy_http:handle({resp, Part1}, S2),
+         ?assertEqual(Part1, Part11),
          {ok,
           #http_state{resp_in = fin,
                       resp_buffer_rest = <<>>,
-                      resp_payload = {text, <<"PONG">>}} =
+                      resp_payload = [{text, <<"PONG">>}]} =
               S4} =
              make_proxy_http:handle({resp, Part2}, S3),
          {ok,
           #http_state{resp_in = fin,
                       resp_buffer_rest = <<>>,
-                      resp_payload = {text, <<"PONG">>}}} =
+                      resp_payload = [{text, <<"PONG">>}]}} =
              make_proxy_http:handle({resp, Data}, S4)
      end
      || _N <- lists:seq(1, 10)],
@@ -140,21 +141,22 @@ Upgrade: websocket\r
 Host: web.mchat.com\r\n\r\n">>,
     {ok, S} = make_proxy_http:init([]),
     {ok,
-     #http_state{req_in = body,
+     #http_state{req_in = fin,
                  type = ?TYPE_WEBSOCKET,
                  req_method = <<"GET">>,
                  req_path = <<"/websocket">>,
                  req_ver = 'HTTP/1.1',
                  req_buffer = H,
                  req_buffer_rest = <<>>,
-                 req_payload = <<>>,
-                 req_len = 0} =
+                 req_payload = [],
+                 req_len = 0
+     } =
          S1} =
         make_proxy_http:handle({req, H}, S),
     Data = cow_ws:masked_frame({text, <<"PING">>}, undefined),
     {ok,
      #http_state{req_in = fin,
-                 req_payload = {text, <<"PING">>},
+                 req_payload = [{text, <<"PING">>}],
                  req_buffer_rest = <<>>,
                  type = ?TYPE_WEBSOCKET} =
          S2} =
@@ -170,7 +172,7 @@ Host: web.mchat.com\r\n\r\n">>,
     ?assertEqual(Part1, Part2),
     {ok,
      #http_state{req_in = fin,
-                 req_payload = {text, <<"PING">>},
+                 req_payload = [{text, <<"PING">>}],
                  req_buffer_rest = <<>>}} =
         make_proxy_http:handle({req, binary:part(Data1, {1, erlang:size(Data1) - 1})}, S3),
     ok.
@@ -266,10 +268,15 @@ transfer_encoding(_) ->
     ?assertEqual(true, lists:member({<<"a">>, <<"a">>}, Headers)),
 
      {ok,
-     #http_state{resp_in = fin,
-                 resp_payload = <<"1234">>,
-                 resp_buffer_rest = <<>>,
-                 resp_headers = Headers}} =
-        make_proxy_http:handle({resp, <<H/binary, "1\r\na\r\n2\r\nab\r\n3\r\nabc\r\n0\r\n\r\n">>}, S),
-
+     #http_state{
+                 resp_payload = RespPayload,
+                 resp_headers = Headers1}} =
+     make_proxy_http:handle({resp, <<
+     "HTTP/1.1 200 OK\r\n"
+     "server: GitHub.com\r\n"
+     "transfer-encoding: chunked\r\n"
+     "\r\n1\r\na\r\n2\r\nab\r\n3\r\nabc\r\n0\r\n\r\n">>}, S),
+    ?assertEqual(<<"aababc">>,RespPayload),
+    ?assertEqual([{<<"server">>,<<"GitHub.com">>},
+      {<<"transfer-encoding">>,<<"chunked">>}], Headers1),
     ok.
