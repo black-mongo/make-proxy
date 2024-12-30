@@ -13,4 +13,4 @@ crate-type = ["dylib"]
 [dependencies]
 rustler = "0.29.1"
 # inn-common = "0.2.0"
-inn-common={path="/Users/cam/proj/rust/inn/inn-common", version="0.2.1"}
+inn-common={path="/Users/vv/proj/rust/inn/inn-common", version="0.2.1"}

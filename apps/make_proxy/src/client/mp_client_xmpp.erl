@@ -145,8 +145,9 @@ response(Data, State) ->
     do_stanza(recv, Data, State).
 
 find_target(Data) ->
-    Host = application:get_env(make_proxy, im, "im.server"),
-    {ok, {Host, 5222}, Data}.
+    Host = application:get_env(make_proxy, im_ip, "im.server"),
+    Port = application:get_env(make_proxy, im_port, 5222),
+    {ok, {Host, Port}, Data}.
 
 process_tls(#xmlel{name = <<"proceed">>,
                    attrs = [{<<"xmlns">>, <<"urn:ietf:params:xml:ns:xmpp-tls">>}]} =
